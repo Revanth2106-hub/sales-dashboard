@@ -266,13 +266,6 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-st.markdown("""
-### 📊 Quadrant Interpretation:
-- 🟢 Top Right → High Sales & High Profit (Star Products)
-- 🔵 Bottom Right → High Sales but Low Profit (Cost Issue)
-- 🟡 Top Left → Low Sales but High Profit (Niche Opportunity)
-- 🔴 Bottom Left → Low Sales & Low Profit (Weak Products)
-""")
 # ==============================
 # QUANTITY BY CATEGORY
 # ==============================
