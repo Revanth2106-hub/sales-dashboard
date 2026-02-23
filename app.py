@@ -302,9 +302,11 @@ fig7 = px.bar(
 
 st.plotly_chart(fig7, use_container_width=True)
 
-# ==============================
-# DISCOUNT ANALYSIS
-# ==============================
+# =========================================
+# 💸 DISCOUNT IMPACT ANALYSIS (CLEANED)
+# =========================================
+
+st.markdown("## 💸 Discount Impact Analysis")
 
 discount_analysis = (
     filtered_df.groupby("discount")[["sales", "profit"]]
@@ -312,15 +314,77 @@ discount_analysis = (
     .reset_index()
 )
 
-fig8 = px.bar(
+# Convert discount to string (categorical)
+discount_analysis["discount"] = discount_analysis["discount"].astype(str) + "%"
+
+import plotly.express as px
+
+fig = px.bar(
     discount_analysis,
     x="discount",
     y="sales",
-    title="Total Sales by Discount"
+    text_auto=True,
+    title="Total Sales by Discount Level",
+    template="plotly_white"
 )
 
-st.plotly_chart(fig8, use_container_width=True)
+fig.update_layout(
+    xaxis_title="Discount Level",
+    yaxis_title="Total Sales",
+)
 
+st.plotly_chart(fig, use_container_width=True)
+# Calculate Profit Margin
+discount_analysis["Profit Margin %"] = (
+    discount_analysis["profit"] / discount_analysis["sales"] * 100
+)
+
+import plotly.graph_objects as go
+
+fig = go.Figure()
+
+# Sales Bar
+fig.add_trace(go.Bar(
+    x=discount_analysis["discount"],
+    y=discount_analysis["sales"],
+    name="Total Sales"
+))
+
+# Profit Line
+fig.add_trace(go.Scatter(
+    x=discount_analysis["discount"],
+    y=discount_analysis["profit"],
+    mode="lines+markers",
+    name="Total Profit"
+))
+
+fig.update_layout(
+    title="📊 Discount vs Sales & Profit",
+    xaxis_title="Discount Level",
+    yaxis_title="Amount",
+    template="plotly_white"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("### 📈 Profit Margin by Discount")
+
+fig2 = go.Figure()
+
+fig2.add_trace(go.Scatter(
+    x=discount_analysis["discount"],
+    y=discount_analysis["Profit Margin %"],
+    mode="lines+markers"
+))
+
+fig2.update_layout(
+    title="Profit Margin % vs Discount",
+    xaxis_title="Discount Level",
+    yaxis_title="Profit Margin %",
+    template="plotly_white"
+)
+
+st.plotly_chart(fig2, use_container_width=True)
 # ==============================
 # PROFIT & SALES BY CATEGORY
 # ==============================
