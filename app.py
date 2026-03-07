@@ -3,10 +3,47 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Retail Sales Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
+
+# ==============================
+# DARK BLUE THEME STYLE
+# ==============================
+
+st.markdown("""
+<style>
+
+.stApp {
+    background-color: #f0f2f6;
+    color: ;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #123a63;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # Load Dataset
 df = pd.read_csv("retail_data.csv")
+
+
+st.markdown(
+"""
+<h1 style='text-align:center;color:#1f4e79'>
+📊 Retail Sales Performance Dashboard
+</h1>
+<p style='text-align:center; 
+          color:#0f172a; 
+          font-size:18px; 
+          font-weight:bold;'>
+Interactive analysis of sales, profit, customers and discounts
+</p>
+""", unsafe_allow_html=True)
 
 # Convert date
 df["order_date"] = pd.to_datetime(df["order_date"])
@@ -16,36 +53,36 @@ df["Year"] = df["order_date"].dt.year
 # SIDEBAR FILTERS
 # ==============================
 
-st.sidebar.header("Filters")
-st.markdown("<h1 style='text-align: center;'>📊 Sales Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("---")
-
 st.markdown("""
 <style>
+
 .stApp {
-    background-color: #f5f7fa;
+    background: linear-gradient(120deg,#f6f9fc,#eef2f7);
+}
+
+h1, h2, h3 {
+    color:#1f4e79;
 }
 
 section[data-testid="stSidebar"] {
-    background-color: #ffffff;
-    border-right: 2px solid #e0e0e0;
-}
-
-h1 {
-    color: #1f4e79;
+    background-color:#ffffff;
+    border-right:2px solid #e6e6e6;
 }
 
 .stMetric {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0px 4px 10px rgba(0,0,0,0.08);
+    background:white;
+    padding:20px;
+    border-radius:15px;
+    border-left:5px solid #4CAF50;
+    box-shadow:0px 4px 12px rgba(0,0,0,0.1);
 }
+
+.block-container {
+    padding-top:2rem;
+}
+
 </style>
-""", unsafe_allow_html=True)
-
-
-
+""", unsafe_allow_html=True)    
 
 region = st.sidebar.multiselect(
     "Select Store Region",
@@ -95,12 +132,12 @@ profit_delta = total_profit - prev_profit
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
-col1.metric("💰 Total Sales", f"${total_sales:,.0f}", f"{sales_delta:,.0f}")
-col2.metric("📦 Total Orders", total_orders)
-col3.metric("📈 Total Profit", f"${total_profit:,.0f}", f"{profit_delta:,.0f}")
-col4.metric("🛒 Total Quantity", f"{total_quantity:,.0f}")
-col5.metric("📊 Profit Margin", f"{profit_margin:.2%}")
-
+col1.metric("💰 Revenue", f"${total_sales:,.0f}", f"{sales_delta:,.0f}")
+col2.metric("📦 Orders", total_orders)
+col3.metric("📈 Profit", f"${total_profit:,.0f}", f"{profit_delta:,.0f}")
+col4.metric("🛒 Quantity", f"{total_quantity:,.0f}")
+col5.metric("📊 Margin", f"{profit_margin:.2%}")
+st.divider()
 st.markdown("---")
 # ==============================
 # SALES BY YEAR
@@ -112,10 +149,11 @@ fig1 = px.line(
     sales_year,
     x="Year",
     y="sales",
-    title="Total Sales by Year",
-    markers=True
+    title="📈 Sales Trend Over Years",
+    markers=True,
+    template="plotly_white"
 )
-
+fig1.update_traces(line=dict(width=4))
 st.plotly_chart(fig1, use_container_width=True)
 
 # ==============================
@@ -334,6 +372,19 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
+# Doughnut Chart
+st.subheader("Sales Distribution by Product Category")
+
+fig = px.pie(
+    df,
+    names="product_category",
+    values="sales",
+    hole=0.5
+)
+
+st.plotly_chart(fig)
+
 # Calculate Profit Margin
 discount_analysis["Profit Margin %"] = (
     discount_analysis["profit"] / discount_analysis["sales"] * 100
@@ -385,6 +436,7 @@ fig2.update_layout(
 )
 
 st.plotly_chart(fig2, use_container_width=True)
+
 # ==============================
 # PROFIT & SALES BY CATEGORY
 # ==============================
@@ -402,10 +454,5 @@ fig9.add_bar(x=profit_sales["product_category"], y=profit_sales["profit"], name=
 fig9.update_layout(title="Total Sales & Profit by Category", barmode="group")
 
 st.plotly_chart(fig9, use_container_width=True)
+ 
 
-# ==============================
-# DATA TABLE
-# ==============================
-
-st.markdown("### Detailed Data")
-st.dataframe(filtered_df)
