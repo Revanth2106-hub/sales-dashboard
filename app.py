@@ -18,7 +18,7 @@ st.markdown("""
 
 .stApp {
     background-color: #f0f2f6;
-    color: ;
+    color: #0f172a;
 }
 
 section[data-testid="stSidebar"] {
@@ -37,13 +37,11 @@ st.markdown(
 <h1 style='text-align:center;color:#1f4e79'>
 📊 Retail Sales Performance Dashboard
 </h1>
-<p style='text-align:center; 
-          color:#0f172a; 
-          font-size:18px; 
-          font-weight:bold;'>
-Interactive analysis of sales, profit, customers and discounts
+<p style='text-align:center; color:#475569; font-size:16px;'>
+Use the filters in the sidebar to focus on regions, categories, and dates. Each section below has a short explanation so you can read the charts easily.
 </p>
 """, unsafe_allow_html=True)
+st.markdown("---")
 
 # Convert date
 df["order_date"] = pd.to_datetime(df["order_date"])
@@ -107,557 +105,344 @@ filtered_df = df[
     (df["order_date"] >= pd.to_datetime(date_range[0])) &
     (df["order_date"] <= pd.to_datetime(date_range[1]))
 ]
+# Convert date columns once
+filtered_df["order_date"] = pd.to_datetime(filtered_df["order_date"])
+filtered_df["Year"] = filtered_df["order_date"].dt.year
+filtered_df["YearMonth"] = filtered_df["order_date"].dt.to_period("M")
+
+year_months = sorted(filtered_df["YearMonth"].unique())
+month_labels = [p.to_timestamp().strftime("%b %Y") for p in year_months]
+month_options = ["All Months"] + month_labels
+
+def _filter_by_month(df, selected):
+    if selected == "All Months":
+        return df
+    sel_ix = month_labels.index(selected)
+    return df[df["YearMonth"] == year_months[sel_ix]]
+
 # ==============================
-# KPI SECTION (UPGRADED)
+# KEY NUMBERS
 # ==============================
-total_sales = filtered_df["sales"].sum()
-total_profit = filtered_df["profit"].sum()
-total_orders = filtered_df["order_id"].nunique()
-avg_order_value = total_sales / total_orders
+st.markdown("### 📈 Key Numbers")
+st.caption("Totals for the selected month or full period.")
+month_kpi = st.selectbox("Month", options=month_options, index=0, key="month_kpi")
+df_kpi = _filter_by_month(filtered_df, month_kpi)
+
+total_sales = df_kpi["sales"].sum()
+total_profit = df_kpi["profit"].sum()
+total_orders = df_kpi["order_id"].nunique()
+avg_order_value = total_sales / total_orders if total_orders else 0
 
 col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Revenue", f"${total_sales:,.0f}")
+col2.metric("Orders", f"{total_orders:,}")
+col3.metric("Total Profit", f"${total_profit:,.0f}")
+col4.metric("Avg Order Value", f"${avg_order_value:,.2f}")
 
-col1.metric("Revenue ($)", f"${total_sales:,.0f}")
-col2.metric("Orders", total_orders)
-col3.metric("Profit ($)", f"${total_profit:,.0f}")
-col4.metric("Avg Order Value ($)", f"${avg_order_value:,.2f}")
-
-# Convert date column
-filtered_df["order_date"] = pd.to_datetime(filtered_df["order_date"])
-
-# Create Year column
-filtered_df["Year"] = filtered_df["order_date"].dt.year
+st.markdown("---")
 
 # ==============================
-# YEAR TOGGLE
+# 1. SALES REVENUE OVER TIME
 # ==============================
-
-selected_year = st.radio(
-    "Select Year",
-    ["All", "2022", "2023", "2024"],
-    horizontal=True
-)
-
-# ==============================
-# FILTER DATA BY YEAR
-# ==============================
-
-if selected_year != "All":
-    year_df = filtered_df[filtered_df["Year"] == int(selected_year)]
-else:
-    year_df = filtered_df
-
-# ==============================
-# CREATE SALES TREND DATA
-# ==============================
+st.markdown("### 📈 Sales Revenue Over Time")
+st.caption("Daily sales trend for the selected month or full period.")
+month_trend = st.selectbox("Month", options=month_options, index=0, key="month_trend")
+df_trend = _filter_by_month(filtered_df, month_trend)
 
 sales_trend = (
-    year_df.groupby(year_df["order_date"].dt.date)["sales"]
+    df_trend.groupby(df_trend["order_date"].dt.date)["sales"]
     .sum()
     .reset_index()
 )
-
-# ==============================
-# CREATE LINE CHART
-# ==============================
-
-fig = px.line(
-    sales_trend,
-    x="order_date",
-    y="sales",
-    title="Sales Revenue Trend Over Time",
-    markers=True
-)
-
-fig.update_layout(
+fig_trend = px.line(sales_trend, x="order_date", y="sales", markers=True)
+fig_trend.update_layout(
     xaxis_title="Date",
     yaxis_title="Sales Revenue ($)",
-    template="plotly_white"
+    yaxis=dict(tickformat=",", tickprefix="$"),
+    template="plotly_white",
+    title=""
+)
+st.plotly_chart(fig_trend, use_container_width=True)
+
+st.markdown("---")
+
+# ==============================
+# 2. BY CATEGORY & BY REGION (side by side) — Bar + Sunburst
+# ==============================
+st.markdown("### 🏷️ Sales Performance by Category & Region")
+st.caption("Understand which product categories drive revenue and how sales are distributed across store regions.")
+
+month_cat_region = st.selectbox(
+    "Select Month",
+    options=month_options,
+    index=0,
+    key="month_cat_region"
 )
 
-# ==============================
-# DISPLAY CHART
-# ==============================
+df_cat_region = _filter_by_month(filtered_df, month_cat_region)
 
-st.plotly_chart(fig, use_container_width=True)
-# ==============================
-# SALES BY YEAR
-# ==============================
-# Convert order_date to datetime
-df["order_date"] = pd.to_datetime(df["order_date"])
-
-# Create sales trend dataset
-sales_trend = (
-    filtered_df.groupby(filtered_df["order_date"].dt.date)["sales"]
-    .sum()
-    .reset_index()
-)
-fig = px.bar(
-    sales_trend,
-    x="order_date",
-    y="sales",
-    title="Sales Revenue Trend Over Time"
-)
-
-# ==============================
-# TOTAL SALES BY PRODUCT CATEGORY
-# ==============================
-
-# Convert order_date to datetime
-filtered_df["order_date"] = pd.to_datetime(filtered_df["order_date"])
-
-# Create Year column
-filtered_df["Year"] = filtered_df["order_date"].dt.year
-
-
-# ==============================
-# YEAR TOGGLE
-# ==============================
-
-selected_year = st.radio(
-    "Select Year",
-    ["All", "2022", "2023", "2024"],
-    horizontal=True,
-    key="year_toggle"
-)
-
-
-# ==============================
-# FILTER DATA BASED ON YEAR
-# ==============================
-
-if selected_year != "All":
-    year_df = filtered_df[filtered_df["Year"] == int(selected_year)]
-else:
-    year_df = filtered_df
-
-
-# ==============================
-# CALCULATE TOTAL SALES BY CATEGORY
-# ==============================
-
+# ===============================
+# Data Preparation
+# ===============================
 category_sales = (
-    year_df.groupby("product_category")["sales"]
+    df_cat_region.groupby("product_category")["sales"]
+    .sum()
+    .reset_index()
+    .sort_values("sales", ascending=False)
+)
+
+region_sales = (
+    df_cat_region.groupby("store_region")["sales"]
     .sum()
     .reset_index()
 )
 
-
-# ==============================
-# CREATE BAR CHART
-# ==============================
-
-fig = px.bar(
+# ===============================
+# LEFT: Category Revenue Chart
+# ===============================
+fig_cat = px.bar(
     category_sales,
     x="product_category",
     y="sales",
     color="product_category",
-    title="Total Sales by Product Category",
-    text_auto=True
+    text="sales",
+    color_discrete_sequence=px.colors.qualitative.Set2
 )
 
+fig_cat.update_traces(
+    texttemplate="$%{text:,.0f}",
+    textposition="outside",
+    cliponaxis=False
+)
 
-# ==============================
-# CHART LAYOUT
-# ==============================
-
-fig.update_layout(
+fig_cat.update_layout(
+    template="plotly_white",
     xaxis_title="Product Category",
-    yaxis_title="Sales Revenue ($)",
-    template="plotly_white"
+    yaxis_title="Revenue ($)",
+    yaxis=dict(tickformat="$,"),
+    showlegend=False,
+    margin=dict(t=30, b=20, l=20, r=20)
 )
 
-
-# ==============================
-# DISPLAY CHART
-# ==============================
-
-st.plotly_chart(fig, use_container_width=True)
-
-# ==============================
-# TOTAL SALES BY REGION
-# ==============================
-
-# Convert order_date to datetime
-filtered_df["order_date"] = pd.to_datetime(filtered_df["order_date"])
-
-# Extract year
-filtered_df["Year"] = filtered_df["order_date"].dt.year
-
-
-# ==============================
-# YEAR TOGGLE
-# ==============================
-
-region_year = st.radio(
-    "Select Year for Regional Sales",
-    ["All", "2022", "2023", "2024"],
-    horizontal=True,
-    key="region_year_toggle"
-)
-
-
-# ==============================
-# FILTER DATA BASED ON YEAR
-# ==============================
-
-if region_year != "All":
-    region_df = filtered_df[filtered_df["Year"] == int(region_year)]
-else:
-    region_df = filtered_df
-
-
-# ==============================
-# CALCULATE SALES BY REGION
-# ==============================
-
-region_sales = (
-    region_df.groupby("store_region")["sales"]
-    .sum()
-    .reset_index()
-)
-
-
-# ==============================
-# CREATE PIE CHART
-# ==============================
-
+# ===============================
+# RIGHT: Regional Sales Share
+# ===============================
 fig_region = px.pie(
     region_sales,
     names="store_region",
     values="sales",
-    title="Total Sales by Region",
-    hole=0.4   # makes it a doughnut chart
+    hole=0.55,
+    color_discrete_sequence=px.colors.sequential.Blues_r
 )
 
-
-# ==============================
-# DISPLAY CHART
-# ==============================
-
-st.plotly_chart(fig_region, use_container_width=True)
-
-# ======================================
-# TOP 10 PRODUCTS BY SALES
-# ======================================
-# Convert order_date to datetime
-filtered_df["order_date"] = pd.to_datetime(filtered_df["order_date"])
-
-# Extract year
-filtered_df["Year"] = filtered_df["order_date"].dt.year
-
-
-# ======================================
-# YEAR TOGGLE
-# ======================================
-
-product_year = st.radio(
-    "Select Year for Top Products",
-    ["All", "2022", "2023", "2024"],
-    horizontal=True,
-    key="product_year_toggle"
+fig_region.update_traces(
+    textinfo="percent",
+    textfont_size=14,
+    pull=[0.03]*len(region_sales)
 )
 
+fig_region.update_layout(
+    template="plotly_white",
+    margin=dict(t=30, b=20, l=20, r=20)
+)
 
+# ===============================
+# Layout
+# ===============================
+col_cat, col_region = st.columns(2)
+
+with col_cat:
+    st.plotly_chart(fig_cat, use_container_width=True)
+
+with col_region:
+    st.plotly_chart(fig_region, use_container_width=True)
+
+st.markdown("---")
 # ======================================
-# FILTER DATA BASED ON YEAR
+# 3. TOP 10 PRODUCTS & TOP 10 CUSTOMERS (side by side)
 # ======================================
+st.markdown("### 🏆 Top Revenue Drivers")
+st.caption("Top performing products and customer contribution to total revenue.")
 
-if product_year != "All":
-    product_df = filtered_df[filtered_df["Year"] == int(product_year)]
-else:
-    product_df = filtered_df
+month_top = st.selectbox("Month", options=month_options, index=0, key="month_top")
+df_top = _filter_by_month(filtered_df, month_top)
 
-
-# ======================================
-# CALCULATE TOP PRODUCTS
-# ======================================
-
+# =========================
+# Data Preparation
+# =========================
 top_products = (
-    product_df.groupby("product_name")["sales"]
+    df_top.groupby("product_name")["sales"]
     .sum()
     .reset_index()
     .sort_values(by="sales", ascending=False)
     .head(10)
 )
 
+top_customers = (
+    df_top.groupby("customer_id")["sales"]
+    .sum()
+    .reset_index()
+    .sort_values(by="sales", ascending=False)
+    .head(10)
+)
 
-# ======================================
-# CREATE HORIZONTAL BAR CHART
-# ======================================
-
+# =========================
+# LEFT: Top Products Chart
+# =========================
 fig_top_products = px.bar(
     top_products,
     x="sales",
     y="product_name",
     orientation="h",
     color="sales",
-    title="Top 10 Products by Sales",
-    text_auto=True
+    color_continuous_scale="Blues",
+    text="sales"
 )
 
-
-# ======================================
-# CHART LAYOUT
-# ======================================
+fig_top_products.update_traces(
+    texttemplate="$%{text:,.0f}",
+    textposition="outside",
+    cliponaxis=False
+)
 
 fig_top_products.update_layout(
-    xaxis_title="Sales Revenue",
-    yaxis_title="Product Name",
-    yaxis=dict(autorange="reversed"),  # highest on top
-    template="plotly_white"
+    template="plotly_white",
+    xaxis_title="Revenue ($)",
+    yaxis_title="Product",
+    yaxis=dict(autorange="reversed"),
+    xaxis=dict(tickformat="$,"),
+    margin=dict(t=30, b=20, l=20, r=20),
+    coloraxis_showscale=False
 )
 
+# =========================
+# RIGHT: Customer Revenue Share
+# =========================
+fig_top_cust = px.pie(
+    top_customers,
+    values="sales",
+    hole=0.6,
+    color_discrete_sequence=px.colors.sequential.Greens_r
+)
 
-# ======================================
-# DISPLAY CHART
-# ======================================
+fig_top_cust.update_traces(
+    textinfo="percent",
+    pull=[0.03]*len(top_customers)
+)
 
-st.plotly_chart(fig_top_products, use_container_width=True)
+fig_top_cust.update_layout(
+    template="plotly_white",
+    showlegend=False,
+    margin=dict(t=20, b=20, l=20, r=20)
+)
 
-# =========================================
-# 💼 FINANCIAL ANALYSIS SECTION
-# =========================================
+# =========================
+# Layout
+# =========================
+col_prod, col_cust = st.columns(2)
 
-st.markdown("## 💼 Financial Performance Analysis")
+with col_prod:
+    st.plotly_chart(fig_top_products, use_container_width=True)
 
-# ===== Overall Financial Summary =====
-
-total_sales = filtered_df["sales"].sum()
-total_cost = filtered_df["cost"].sum()
-total_profit = filtered_df["profit"].sum()
-profit_margin = (total_profit / total_sales) * 100 if total_sales != 0 else 0
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("💰 Revenue", f"${total_sales:,.0f}")
-col2.metric("💸 Total Cost", f"${total_cost:,.0f}")
-col3.metric("📈 Gross Profit", f"${total_profit:,.0f}")
-col4.metric("📊 Profit Margin", f"{profit_margin:.2f}%")
+with col_cust:
+    st.plotly_chart(fig_top_cust, use_container_width=True)
 
 st.markdown("---")
-
-# ===== Category-wise Financial Performance =====
+# =========================================
+# 4. REVENUE & UNITS BY CATEGORY — Treemap + Sunburst
+# =========================================
+st.markdown("## 💼 Revenue & Units by Category")
+st.caption("Left: treemap — revenue per category (size = sales). Right: sunburst — units sold per category.")
+month_rev_units = st.selectbox("Month", options=month_options, index=0, key="month_rev_units")
+df_rev_units = _filter_by_month(filtered_df, month_rev_units)
 
 category_finance = (
-    filtered_df.groupby("product_category")[["sales", "cost", "profit"]]
+    df_rev_units.groupby("product_category")[["sales", "cost", "profit"]]
     .sum()
     .reset_index()
 )
+qty_category = df_rev_units.groupby("product_category")["quantity"].sum().reset_index()
 
-category_finance["Profit Margin %"] = (
-    category_finance["profit"] / category_finance["sales"] * 100
-)
-
-import plotly.express as px
-
-fig = px.bar(
+# Left: treemap (unique)
+fig_fin_cat = px.treemap(
     category_finance,
-    x="product_category",
-    y="profit",
-    color="product_category",
-    text_auto=True,
-    title="📊 Profit by Product Category",
-    template="plotly_white"
+    path=["product_category"],
+    values="sales",
+    color="sales",
+    color_continuous_scale="Blues"
 )
+fig_fin_cat.update_traces(textinfo="label+value", texttemplate="%{label}<br>$%{value:,.0f}")
+fig_fin_cat.update_layout(template="plotly_white", title="", margin=dict(t=20, b=20, l=20, r=20))
 
-fig.update_layout(showlegend=False)
+# Right: sunburst (unique)
+fig_qty = px.sunburst(
+    qty_category,
+    path=["product_category"],
+    values="quantity",
+    color="quantity",
+    color_continuous_scale="Greens"
+)
+fig_qty.update_traces(textinfo="label+value+percent parent", texttemplate="%{label}<br>%{value:,.0f} units<br>%{percentParent}")
+fig_qty.update_layout(template="plotly_white", title="", margin=dict(t=20, b=20, l=20, r=20))
 
-st.plotly_chart(fig, use_container_width=True)
-
-st.markdown("### 📋 Category Financial Summary Table")
-
-st.dataframe(category_finance.style.format({
-    "sales": "${:,.0f}",
-    "cost": "${:,.0f}",
-    "profit": "${:,.0f}",
-    "Profit Margin %": "{:.2f}%"
-}))
+col_fin, col_qty = st.columns(2)
+with col_fin:
+    st.plotly_chart(fig_fin_cat, use_container_width=True)
+with col_qty:
+    st.plotly_chart(fig_qty, use_container_width=True)
 
 st.markdown("---")
 
-# ===== Financial Flow (Waterfall Chart) =====
-
-import plotly.graph_objects as go
-
-fig2 = go.Figure(go.Waterfall(
-    name="Financial Flow",
-    orientation="v",
-    measure=["absolute", "relative", "total"],
-    x=["Revenue", "Cost", "Net Profit"],
-    y=[total_sales, -total_cost, total_profit],
-    text=[f"${total_sales:,.0f}",
-          f"-${total_cost:,.0f}",
-          f"${total_profit:,.0f}"],
-    textposition="outside"
-))
-
-fig2.update_layout(
-    title="💰 Revenue to Profit Flow",
-    template="plotly_white",
-    title_font_size=22,
-    showlegend=False
-)
-
-st.plotly_chart(fig2, use_container_width=True)
-
-fig.update_layout(
-    xaxis_title="Total Sales",
-    yaxis_title="Total Profit",
-    title_font_size=20
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# ==============================
-# QUANTITY BY CATEGORY
-# ==============================
-
-qty_category = filtered_df.groupby("product_category")["quantity"].sum().reset_index()
-
-fig6 = px.pie(
-    qty_category,
-    names="product_category",
-    values="quantity",
-    title="Quantity % Contribution by Category"
-)
-
-st.plotly_chart(fig6, use_container_width=True)
-
-# ==============================
-# CUSTOMER SALES
-# ==============================
-
-top_customers = (
-    filtered_df.groupby("customer_id")["sales"]
-    .sum()
-    .sort_values(ascending=False)
-    .head(10)
-    .reset_index()
-)
-
-fig7 = px.bar(
-    top_customers,
-    x="customer_id",
-    y="sales",
-    title="Top 10 Customers by Sales"
-)
-
-st.plotly_chart(fig7, use_container_width=True)
-
 # =========================================
-# 💸 DISCOUNT IMPACT ANALYSIS (CLEANED)
+# 5. DISCOUNT IMPACT & SALES SHARE — Funnel + Treemap
 # =========================================
-
-st.markdown("## 💸 Discount Impact Analysis")
+st.markdown("## 💸 Discount Impact & Sales Share")
+st.caption("Left: funnel — revenue at each discount level (narrowing by level). Right: treemap — sales share by category.")
+month_discount = st.selectbox("Month", options=month_options, index=0, key="month_discount")
+df_discount = _filter_by_month(filtered_df, month_discount)
 
 discount_analysis = (
-    filtered_df.groupby("discount")[["sales", "profit"]]
+    df_discount.groupby("discount")[["sales", "profit"]]
     .sum()
     .reset_index()
 )
+discount_analysis["discount_label"] = discount_analysis["discount"].astype(str) + "%"
+discount_analysis = discount_analysis.sort_values("discount")  # 0% first (widest in funnel)
 
-# Convert discount to string (categorical)
-discount_analysis["discount"] = discount_analysis["discount"].astype(str) + "%"
-
-import plotly.express as px
-
-fig = px.bar(
+# Left: funnel (unique)
+fig_disc = px.funnel(
     discount_analysis,
-    x="discount",
-    y="sales",
-    text_auto=True,
-    title="Total Sales by Discount Level",
-    template="plotly_white"
+    x="sales",
+    y="discount_label",
+    color="discount_label"
+)
+fig_disc.update_traces(
+    textinfo="value",
+    texttemplate="$%{x:,.0f}"
 )
 
-fig.update_layout(
-    xaxis_title="Discount Level",
-    yaxis_title="Total Sales",
+fig_disc.update_layout(
+    xaxis_title="Total Sales ($)",
+    yaxis_title="Discount Level",
+    template="plotly_white",
+    title="",
+    showlegend=False
 )
-
-st.plotly_chart(fig, use_container_width=True)
-
-# Doughnut Chart
-st.subheader("Sales Distribution by Product Category")
-
-fig = px.pie(
-    df,
-    names="product_category",
+# Right: treemap (sales share by category)
+cat_sales_share = df_discount.groupby("product_category")["sales"].sum().reset_index()
+fig_sales_share = px.treemap(
+    cat_sales_share,
+    path=["product_category"],
     values="sales",
-    hole=0.5
+    color="sales",
+    color_continuous_scale="Oranges"
 )
+fig_sales_share.update_traces(textinfo="label+value+percent parent", texttemplate="%{label}<br>$%{value:,.0f}<br>%{percentParent}")
+fig_sales_share.update_layout(template="plotly_white", title="", margin=dict(t=20, b=20, l=20, r=20))
 
-st.plotly_chart(fig)
-
-# Calculate Profit Margin
-discount_analysis["Profit Margin %"] = (
-    discount_analysis["profit"] / discount_analysis["sales"] * 100
-)
-
-import plotly.graph_objects as go
-
-fig = go.Figure()
-
-# Sales Bar
-fig.add_trace(go.Bar(
-    x=discount_analysis["discount"],
-    y=discount_analysis["sales"],
-    name="Total Sales"
-))
-
-# Profit Line
-fig.add_trace(go.Scatter(
-    x=discount_analysis["discount"],
-    y=discount_analysis["profit"],
-    mode="lines+markers",
-    name="Total Profit"
-))
-
-fig.update_layout(
-    title="📊 Discount vs Sales & Profit",
-    xaxis_title="Discount Level",
-    yaxis_title="Amount",
-    template="plotly_white"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-st.markdown("### 📈 Profit Margin by Discount")
-
-fig2 = go.Figure()
-
-fig2.add_trace(go.Scatter(
-    x=discount_analysis["discount"],
-    y=discount_analysis["Profit Margin %"],
-    mode="lines+markers"
-))
-
-fig2.update_layout(
-    title="Profit Margin % vs Discount",
-    xaxis_title="Discount Level",
-    yaxis_title="Profit Margin %",
-    template="plotly_white"
-)
-
-st.plotly_chart(fig2, use_container_width=True)
-
-# ==============================
-# PROFIT & SALES BY CATEGORY
-# ==============================
-
-profit_sales = (
-    filtered_df.groupby("product_category")[["sales", "profit"]]
-    .sum()
-    .reset_index()
-)
-
-fig9 = go.Figure()
-fig9.add_bar(x=profit_sales["product_category"], y=profit_sales["sales"], name="Sales")
-fig9.add_bar(x=profit_sales["product_category"], y=profit_sales["profit"], name="Profit")
-
-fig9.update_layout(title="Total Sales & Profit by Category", barmode="group")
-
-st.plotly_chart(fig9, use_container_width=True)
- 
+col_disc, col_share = st.columns(2)
+with col_disc:
+    st.plotly_chart(fig_disc, use_container_width=True)
+with col_share:
+    st.plotly_chart(fig_sales_share, use_container_width=True)
 
