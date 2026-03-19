@@ -32,16 +32,16 @@ section[data-testid="stSidebar"] {
 df = pd.read_csv("retail_data.csv")
 
 
-st.markdown(
-"""
-<h1 style='text-align:center;color:#1f4e79'>
-📊 Retail Sales Performance Dashboard
-</h1>
-<p style='text-align:center; color:#475569; font-size:16px;'>
-Use the filters in the sidebar to focus on regions, categories, and dates. Each section below has a short explanation so you can read the charts easily.
-</p>
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {
+    display: none;
+}
+</style>
 """, unsafe_allow_html=True)
-st.markdown("---")
+
+# Title
+st.title("📊 Retail Sales Performance Dashboard")
 
 # Convert date
 df["order_date"] = pd.to_datetime(df["order_date"])
